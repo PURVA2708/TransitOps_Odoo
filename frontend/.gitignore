@@ -3,9 +3,11 @@ node_modules
 .pnp
 .pnp.js
 
-# build
+# build & caches (auto-generated — never commit)
 dist
 dist-ssr
+.vite
+node_modules/.vite
 *.local
 
 # env
