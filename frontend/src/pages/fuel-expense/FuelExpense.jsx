@@ -1,13 +1,14 @@
 import { useState, useMemo } from 'react'
 import { useAppData } from '../../store/AppData'
+import { usePrefs } from '../../context/PrefsContext'
+import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../components/ui/Toast'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
 import Icon from '../../components/ui/Icon'
-import Card from '../../components/ui/Card'
-import EmptyState from '../../components/ui/EmptyState'
 import Modal from '../../components/ui/Modal'
 import { Field, Input, Select } from '../../components/ui/Field'
+import './FuelExpense.css'
 
 // Local initial state for demo
 const initialExpenses = [
@@ -16,6 +17,7 @@ const initialExpenses = [
 ]
 
 function ExpenseForm({ open, initial, onSubmit, onClose, vehicles }) {
+  const prefs = usePrefs()
   const editing = Boolean(initial)
   const [form, setForm] = useState(initial || { vehicleId: '', date: '', type: 'Fuel', amount: '', notes: '' })
   const [errors, setErrors] = useState({})
@@ -76,7 +78,7 @@ function ExpenseForm({ open, initial, onSubmit, onClose, vehicles }) {
               <option>Other</option>
             </Select>
           </Field>
-          <Field label="Amount (₹)" required error={errors.amount} htmlFor="amount">
+          <Field label={`Amount (${prefs.currencySymbol})`} required error={errors.amount} htmlFor="amount">
             <Input id="amount" type="number" min="0" value={form.amount} onChange={set('amount')} invalid={!!errors.amount} placeholder="1000" />
           </Field>
           <Field label="Notes" htmlFor="notes">
@@ -88,23 +90,79 @@ function ExpenseForm({ open, initial, onSubmit, onClose, vehicles }) {
   )
 }
 
+// One list panel (Fuel or Expenses) with its own running total.
+function CostPanel({ kind, icon, title, records, total, vehicles, prefs, onEdit }) {
+  return (
+    <section className={`fe-panel ${kind}`}>
+      <div className="fe-panel-head">
+        <div className="fe-panel-title">
+          <span className="fe-ico"><Icon name={icon} size={17} /></span>{title}
+        </div>
+        <div className="fe-panel-total-wrap">
+          <div className="fe-panel-total">{prefs.money(total)}</div>
+          <div className="fe-panel-total-label">{records.length} {records.length === 1 ? 'entry' : 'entries'}</div>
+        </div>
+      </div>
+      <div className="fe-panel-body">
+        {records.length === 0 ? (
+          <div className="fe-empty">No {title.toLowerCase()} logged yet.</div>
+        ) : records.map((r) => {
+          const v = vehicles.find((v) => v.id === r.vehicleId)
+          return (
+            <div className="fe-row" key={r.id}>
+              <div className="fe-row-main">
+                <div className="fe-row-top">
+                  <span className="fe-row-veh">{v ? v.reg : r.vehicleId}</span>
+                  <span className="fe-row-type">{r.type}</span>
+                </div>
+                {r.notes && <div className="fe-row-notes">{r.notes}</div>}
+              </div>
+              <div className="fe-row-side">
+                <span className="fe-row-amt">{prefs.money(r.amount)}</span>
+                <span className="fe-row-date">{r.date || '—'}</span>
+              </div>
+              <button type="button" className="fe-row-edit" onClick={() => onEdit(r)}>Edit</button>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+const csvCell = (val) => {
+  const s = String(val ?? '')
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
 export default function FuelExpense() {
   const { vehicles, expenses: records, addExpense, updateExpense } = useAppData()
   const toast = useToast()
-  
   const [query, setQuery] = useState('')
-  const [typeFilter, setTypeFilter] = useState('All')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
 
-  const filtered = useMemo(() => records.filter((r) => {
+  // Data scoping: a Driver sees only the expenses they logged; other roles
+  // (Manager, Safety Officer, Financial Analyst) see everything.
+  const scoped = useMemo(() => {
+    if (user?.role === 'Driver') return records.filter((r) => r.createdBy === user.name)
+    return records
+  }, [records, user])
+
+  const searched = useMemo(() => scoped.filter((r) => {
     const q = query.trim().toLowerCase()
-    const matchesType = typeFilter === 'All' || r.type === typeFilter
-    if (!matchesType) return false
     if (!q) return true
-    const v = vehicles.find(v => v.id === r.vehicleId)
-    return r.notes.toLowerCase().includes(q) || (v && v.reg.toLowerCase().includes(q))
-  }), [records, query, typeFilter, vehicles])
+    const v = vehicles.find((v) => v.id === r.vehicleId)
+    return (r.notes || '').toLowerCase().includes(q) || (v && v.reg.toLowerCase().includes(q))
+  }), [scoped, query, vehicles])
+
+  // 50 : 50 split — Fuel on one side, every other expense type on the other.
+  const fuelRecords = useMemo(() => searched.filter((r) => r.type === 'Fuel'), [searched])
+  const expenseRecords = useMemo(() => searched.filter((r) => r.type !== 'Fuel'), [searched])
+  const sum = (list) => list.reduce((acc, r) => acc + Number(r.amount || 0), 0)
+  const fuelTotal = sum(fuelRecords)
+  const expenseTotal = sum(expenseRecords)
+  const grandTotal = fuelTotal + expenseTotal
 
   const openAdd = () => { setEditing(null); setFormOpen(true) }
   const openEdit = (r) => { setEditing(r); setFormOpen(true) }
@@ -132,7 +190,8 @@ export default function FuelExpense() {
 
   return (
     <div>
-      <PageHeader title="Fuel & Expenses" subtitle="Track fleet running costs">
+      <PageHeader title="Fuel & Expenses" subtitle="Fuel and other running costs, side by side">
+        <Button variant="secondary" onClick={downloadCsv}><Icon name="download" size={16} /> Export CSV</Button>
         <Button onClick={openAdd}><Icon name="plus" size={16} /> Log Expense</Button>
       </PageHeader>
 
@@ -141,52 +200,30 @@ export default function FuelExpense() {
           <Icon name="search" size={16} className="icon" />
           <Input placeholder="Search vehicle or notes…" value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
-        <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} style={{ width: 'auto' }}>
-          {['All', 'Fuel', 'Toll', 'Maintenance', 'Other'].map((t) => <option key={t}>{t}</option>)}
-        </Select>
       </div>
 
-      {filtered.length === 0 ? (
-        <Card>
-          <EmptyState icon="clipboard" title="No expenses found"
-            message={records.length ? 'Try adjusting your search or filters.' : 'Log your first expense to get started.'}
-            action={<Button onClick={openAdd}><Icon name="plus" size={16} /> Log Expense</Button>} />
-        </Card>
-      ) : (
-        <div className="table-wrap">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Vehicle</th>
-                <th>Date</th>
-                <th>Type</th>
-                <th>Amount</th>
-                <th>Notes</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r) => {
-                const v = vehicles.find(v => v.id === r.vehicleId)
-                return (
-                  <tr key={r.id}>
-                    <td data-label="Vehicle"><strong>{v ? v.reg : r.vehicleId}</strong></td>
-                    <td data-label="Date">{r.date}</td>
-                    <td data-label="Type">{r.type}</td>
-                    <td data-label="Amount" className="text-num">₹{Number(r.amount || 0).toLocaleString('en-IN')}</td>
-                    <td data-label="Notes">{r.notes}</td>
-                    <td data-label="Actions">
-                      <div className="cell-actions">
-                        <Button size="sm" variant="secondary" onClick={() => openEdit(r)}>Edit</Button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+      <div className="fe-split">
+        <CostPanel kind="fuel" icon="fuel" title="Fuel"
+          records={fuelRecords} total={fuelTotal} vehicles={vehicles} prefs={prefs} onEdit={openEdit} />
+        <CostPanel kind="expense" icon="coins" title="Expenses"
+          records={expenseRecords} total={expenseTotal} vehicles={vehicles} prefs={prefs} onEdit={openEdit} />
+      </div>
+
+      <div className="fe-grand">
+        <div className="fe-grand-item">
+          <span className="fe-grand-label">Fuel</span>
+          <span className="fe-grand-value">{prefs.money(fuelTotal)}</span>
         </div>
-      )}
+        <div className="fe-grand-item">
+          <span className="fe-grand-label">Expenses</span>
+          <span className="fe-grand-value">{prefs.money(expenseTotal)}</span>
+        </div>
+        <div className="fe-grand-spacer" />
+        <div className="fe-grand-item total">
+          <span className="fe-grand-label">Combined total</span>
+          <span className="fe-grand-value">{prefs.money(grandTotal)}</span>
+        </div>
+      </div>
 
       <ExpenseForm open={formOpen} initial={editing} onSubmit={handleSubmit} onClose={() => setFormOpen(false)} vehicles={vehicles} />
     </div>

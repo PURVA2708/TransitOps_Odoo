@@ -3,11 +3,13 @@ import { useState } from 'react'
 import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import { Field, Input, Select } from '../../components/ui/Field'
+import { usePrefs } from '../../context/PrefsContext'
 import { VEHICLE_TYPES } from '../../store/seed'
 
 const empty = { reg: '', name: '', type: 'Mini Truck', capacity: '', odometer: '', cost: '' }
 
 export default function VehicleForm({ open, initial, onSubmit, onClose }) {
+  const prefs = usePrefs()
   const editing = Boolean(initial)
   const [form, setForm] = useState(initial || empty)
   const [errors, setErrors] = useState({})
@@ -69,7 +71,7 @@ export default function VehicleForm({ open, initial, onSubmit, onClose }) {
           <Field label="Odometer (km)" htmlFor="odometer">
             <Input id="odometer" type="number" min="0" value={form.odometer} onChange={set('odometer')} placeholder="45200" />
           </Field>
-          <Field label="Acquisition Cost (₹)" htmlFor="cost">
+          <Field label={`Acquisition Cost (${prefs.currencySymbol})`} htmlFor="cost">
             <Input id="cost" type="number" min="0" value={form.cost} onChange={set('cost')} placeholder="600000" />
           </Field>
         </div>

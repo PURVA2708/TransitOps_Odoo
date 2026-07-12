@@ -1,0 +1,63 @@
+/* ===== Live Fleet Availability Board ===== */
+.fleet-board { margin-bottom: var(--sp-xl); }
+.fleet-board-head { display: flex; align-items: center; gap: var(--sp-sm); margin-bottom: var(--sp-md); }
+.fleet-board-head h2 { display: inline-flex; align-items: center; gap: 8px; }
+
+/* Summary counts */
+.fleet-summary {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-md);
+  margin-bottom: var(--sp-lg);
+}
+@media (max-width: 640px) { .fleet-summary { grid-template-columns: repeat(2, 1fr); } }
+.fleet-stat {
+  border: 1px solid var(--sand); border-radius: var(--r-md);
+  background: var(--white); padding: var(--sp-md); box-shadow: var(--sh-sm);
+  border-top: 3px solid var(--sand);
+}
+.fleet-stat.available { border-top-color: var(--green); }
+.fleet-stat.inshop    { border-top-color: var(--amber-500); }
+.fleet-stat.ontrip    { border-top-color: var(--blue); }
+.fleet-stat.retired   { border-top-color: var(--red); }
+.fleet-stat-value { font-family: var(--font-serif); font-weight: 700; font-size: 26px; color: var(--espresso); line-height: 1; }
+.fleet-stat-label { font-size: 12px; color: var(--taupe); margin-top: 4px; display: flex; align-items: center; gap: 5px; }
+
+/* Vehicle cards */
+.fleet-grid {
+  display: grid; gap: var(--sp-md);
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.fleet-vehicle {
+  text-align: left; cursor: pointer;
+  border: 1px solid var(--sand); border-radius: var(--r-md);
+  background: var(--white); padding: var(--sp-md);
+  border-left: 4px solid var(--sand);
+  transition: box-shadow .15s, transform .15s, border-color .15s;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.fleet-vehicle:hover { box-shadow: var(--sh-md); transform: translateY(-2px); }
+.fleet-vehicle.is-active { border-color: var(--brand-600); box-shadow: 0 0 0 2px var(--brand-100); }
+.fleet-vehicle.available { border-left-color: var(--green); }
+.fleet-vehicle.inshop    { border-left-color: var(--amber-500); background: var(--amber-bg); }
+.fleet-vehicle.ontrip    { border-left-color: var(--blue); }
+.fleet-vehicle.retired   { border-left-color: var(--red); opacity: .8; }
+
+.fleet-vehicle-top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-sm); }
+.fleet-vehicle-reg { font-weight: 700; color: var(--espresso); font-size: 14px; }
+.fleet-vehicle-name { font-size: 12px; color: var(--taupe); }
+.fleet-vehicle-note {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--amber); font-weight: 600; margin-top: 2px;
+}
+.fleet-vehicle-count { font-size: 11px; color: var(--taupe); }
+
+.service-log-head { margin: var(--sp-lg) 0 var(--sp-md); display: flex; align-items: center; gap: var(--sp-sm); }
+.service-log-head h2 { display: inline-flex; align-items: center; gap: 8px; }
+.service-log-filter {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--brand-700); font-weight: 600;
+}
+.service-log-clear {
+  background: none; border: 1px solid var(--sand); border-radius: var(--r-pill);
+  padding: 3px 10px; font-size: 12px; font-weight: 600; color: var(--coffee); cursor: pointer;
+}
+.service-log-clear:hover { background: var(--linen); }

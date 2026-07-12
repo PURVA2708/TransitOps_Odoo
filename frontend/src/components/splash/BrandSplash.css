@@ -1,0 +1,49 @@
+.bs-shell {
+  position: fixed; inset: 0; z-index: var(--z-toast);
+  display: flex; align-items: center; justify-content: center;
+  background:
+    radial-gradient(circle at 50% 30%, var(--brand-100), transparent 60%),
+    linear-gradient(160deg, var(--cream), var(--linen));
+  overflow: hidden;
+}
+.bs-stage { display: flex; flex-direction: column; align-items: center; gap: var(--sp-lg); transform-origin: center; }
+
+.bs-wordmark {
+  display: flex; overflow: hidden;
+  font-family: var(--font-serif);
+  font-weight: 700;
+  font-size: clamp(40px, 9vw, 88px);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.bs-letter {
+  display: inline-block;
+  background: linear-gradient(135deg, var(--brand-600), var(--amber-500));
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+  padding: 0 1px;
+}
+
+.bs-tag {
+  font-family: var(--font-sans); font-size: clamp(12px, 1.6vw, 15px);
+  font-weight: 600; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--taupe);
+}
+
+.bs-roadwrap {
+  position: relative;
+  width: clamp(240px, 42vw, 440px);
+  height: 30px;
+  display: flex; align-items: center;
+}
+.bs-road {
+  position: absolute; left: 0; right: 0; top: 50%;
+  height: 3px; border-radius: 999px; transform-origin: left center;
+  background: repeating-linear-gradient(
+    to right, var(--brand-600) 0 16px, transparent 16px 28px);
+  opacity: .55;
+}
+.bs-truck {
+  position: relative; color: var(--brand-700);
+  filter: drop-shadow(0 3px 4px rgba(58,44,36,.25));
+}

@@ -5,11 +5,13 @@ import { useState, useMemo } from 'react'
 import Modal from '../../components/ui/Modal'
 import Button from '../../components/ui/Button'
 import { Field, Input, Select } from '../../components/ui/Field'
+import { usePrefs } from '../../context/PrefsContext'
 import { selectableVehicles, selectableDrivers } from '../../store/rules'
 
 const empty = { source: '', dest: '', vehicleId: '', driverId: '', cargo: '', distance: '', revenue: '' }
 
 export default function TripForm({ open, vehicles, drivers, onSubmit, onClose }) {
+  const prefs = usePrefs()
   const [form, setForm] = useState(empty)
   const [errors, setErrors] = useState({})
 
@@ -84,7 +86,7 @@ export default function TripForm({ open, vehicles, drivers, onSubmit, onClose })
           <Field label="Planned Distance (km)" htmlFor="distance">
             <Input id="distance" type="number" min="0" value={form.distance} onChange={set('distance')} placeholder="280" />
           </Field>
-          <Field label="Expected Revenue (₹)" htmlFor="revenue" hint="Used later for ROI">
+          <Field label={`Expected Revenue (${prefs.currencySymbol})`} htmlFor="revenue" hint="Used later for ROI">
             <Input id="revenue" type="number" min="0" value={form.revenue} onChange={set('revenue')} placeholder="12000" />
           </Field>
         </div>
