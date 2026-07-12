@@ -88,11 +88,9 @@ function MaintenanceForm({ open, initial, onSubmit, onClose, vehicles }) {
 }
 
 export default function Maintenance() {
-  const { vehicles } = useAppData()
+  const { vehicles, maintenance: records, addMaintenance, updateMaintenance } = useAppData()
   const toast = useToast()
   
-  // Local state to keep this page independent
-  const [records, setRecords] = useState(initialMaintenance)
   const [query, setQuery] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -107,16 +105,26 @@ export default function Maintenance() {
   const openAdd = () => { setEditing(null); setFormOpen(true) }
   const openEdit = (r) => { setEditing(r); setFormOpen(true) }
 
-  const handleSubmit = (data) => {
+  const handleSubmit = async (data) => {
     if (editing) {
-      setRecords(records.map(r => r.id === editing.id ? { ...r, ...data } : r))
-      toast.success('Record updated')
+      const res = await updateMaintenance(editing.id, data)
+      if (res.ok) {
+        toast.success('Record updated')
+        setFormOpen(false)
+      } else {
+        toast.error(res.error || 'Failed to update record')
+      }
     } else {
-      setRecords([{ ...data, id: `M-${Date.now()}` }, ...records])
-      toast.success('Record added')
+      const res = await addMaintenance(data)
+      if (res.ok) {
+        toast.success('Record added')
+        setFormOpen(false)
+      } else {
+        toast.error(res.error || 'Failed to add record')
+      }
     }
-    setFormOpen(false)
   }
+
 
   return (
     <div>

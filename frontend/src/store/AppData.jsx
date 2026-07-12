@@ -1,41 +1,106 @@
-// Central client-side data store for TransitOps (vehicles, drivers, trips).
-// Holds state + all business-rule actions (unique reg, dispatch validation,
-// automatic status transitions). Persists to localStorage for the demo.
-// To go live: replace the action bodies with Supabase calls — the shapes
-// and rules stay identical.
+// Central data store for TransitOps (vehicles, drivers, trips, maintenance, expenses).
+// Syncs dynamically with the Supabase Postgres backend.
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react'
-import { SEED } from './seed'
-import { validateTrip, nextId } from './rules'
+import { supabase, supabaseReady } from '../lib/supabaseClient'
 
-const KEY = 'transitops_data_v1'
 const AppDataCtx = createContext(null)
 export const useAppData = () => useContext(AppDataCtx)
 
-function load() {
-  try {
-    const raw = localStorage.getItem(KEY)
-    if (raw) return JSON.parse(raw)
-  } catch { /* ignore */ }
-  return SEED
-}
+// ---------- Database Model Mappings ----------
+const mapTripFromDb = (t) => ({
+  id: t.id,
+  source: t.source,
+  dest: t.dest,
+  vehicleId: t.vehicle_id,
+  driverId: t.driver_id,
+  cargo: Number(t.cargo),
+  distance: Number(t.distance) || 0,
+  revenue: Number(t.revenue) || 0,
+  status: t.status,
+  finalOdometer: t.final_odometer !== null && t.final_odometer !== undefined ? Number(t.final_odometer) : null,
+  fuelConsumed: t.fuel_consumed !== null && t.fuel_consumed !== undefined ? Number(t.fuel_consumed) : null,
+})
+
+const mapMaintenanceFromDb = (m) => ({
+  id: m.id,
+  vehicleId: m.vehicle_id,
+  date: m.date,
+  description: m.description,
+  cost: Number(m.cost) || 0,
+  status: m.status,
+})
+
+const mapExpenseFromDb = (e) => ({
+  id: e.id,
+  vehicleId: e.vehicle_id,
+  date: e.date,
+  type: e.type,
+  amount: Number(e.amount) || 0,
+  notes: e.notes || '',
+})
 
 export function AppDataProvider({ children }) {
-  const [state, setState] = useState(load)
+  const [vehicles, setVehicles] = useState([])
+  const [drivers, setDrivers] = useState([])
+  const [trips, setTrips] = useState([])
+  const [maintenance, setMaintenance] = useState([])
+  const [expenses, setExpenses] = useState([])
+
+  const fetchAllData = useCallback(async () => {
+    if (!supabaseReady) return
+    try {
+      const [vRes, dRes, tRes, mRes, eRes] = await Promise.all([
+        supabase.from('vehicles').select('*').order('created_at', { ascending: false }),
+        supabase.from('drivers').select('*').order('created_at', { ascending: false }),
+        supabase.from('trips').select('*').order('created_at', { ascending: false }),
+        supabase.from('maintenance').select('*').order('created_at', { ascending: false }),
+        supabase.from('expenses').select('*').order('created_at', { ascending: false }),
+      ])
+
+      if (vRes.data) setVehicles(vRes.data)
+      if (dRes.data) setDrivers(dRes.data)
+      if (tRes.data) setTrips(tRes.data.map(mapTripFromDb))
+      if (mRes.data) setMaintenance(mRes.data.map(mapMaintenanceFromDb))
+      if (eRes.data) setExpenses(eRes.data.map(mapExpenseFromDb))
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Error fetching data from Supabase:', err)
+    }
+  }, [])
 
   useEffect(() => {
-    try { localStorage.setItem(KEY, JSON.stringify(state)) } catch { /* ignore */ }
-  }, [state])
+    fetchAllData()
+  }, [fetchAllData])
 
-  const resetDemo = useCallback(() => setState(SEED), [])
+  // Realtime subscription setup
+  useEffect(() => {
+    if (!supabaseReady) return
 
-  // ---------- Vehicles ----------
-  const addVehicle = useCallback((data) => {
-    let result = { ok: true }
-    setState((s) => {
-      const dup = s.vehicles.some((v) => v.reg.toLowerCase() === data.reg.trim().toLowerCase())
-      if (dup) { result = { ok: false, error: `Registration ${data.reg} already exists` }; return s }
-      const vehicle = {
-        id: nextId('v', s.vehicles),
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vehicles' }, () => { fetchAllData() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'drivers' }, () => { fetchAllData() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'trips' }, () => { fetchAllData() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'maintenance' }, () => { fetchAllData() })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => { fetchAllData() })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [fetchAllData])
+
+  const resetDemo = useCallback(() => {
+    // Reset database isn't done from client in production; refresh data instead
+    fetchAllData()
+  }, [fetchAllData])
+
+  // ---------- Vehicles Actions ----------
+  const addVehicle = useCallback(async (data) => {
+    if (!supabaseReady) return { ok: false, error: 'Supabase is not configured' }
+    const { data: inserted, error } = await supabase
+      .from('vehicles')
+      .insert({
         reg: data.reg.trim(),
         name: data.name.trim(),
         type: data.type,
@@ -43,157 +108,267 @@ export function AppDataProvider({ children }) {
         odometer: Number(data.odometer) || 0,
         cost: Number(data.cost) || 0,
         status: 'Available',
-      }
-      return { ...s, vehicles: [vehicle, ...s.vehicles] }
-    })
-    return result
-  }, [])
+      })
+      .select()
+      .single()
 
-  const updateVehicle = useCallback((id, data) => {
-    let result = { ok: true }
-    setState((s) => {
-      const dup = s.vehicles.some((v) => v.id !== id && v.reg.toLowerCase() === data.reg.trim().toLowerCase())
-      if (dup) { result = { ok: false, error: `Registration ${data.reg} already exists` }; return s }
-      return {
-        ...s,
-        vehicles: s.vehicles.map((v) => v.id === id ? {
-          ...v,
-          reg: data.reg.trim(), name: data.name.trim(), type: data.type,
-          capacity: Number(data.capacity), odometer: Number(data.odometer) || 0,
-          cost: Number(data.cost) || 0,
-          status: data.status || v.status,
-        } : v),
+    if (error) {
+      if (error.code === '23505') {
+        return { ok: false, error: `Registration ${data.reg} already exists` }
       }
-    })
-    return result
-  }, [])
-
-  const deleteVehicle = useCallback((id) => {
-    setState((s) => ({ ...s, vehicles: s.vehicles.filter((v) => v.id !== id) }))
-  }, [])
-
-  // ---------- Drivers ----------
-  const addDriver = useCallback((data) => {
-    setState((s) => {
-      const driver = {
-        id: nextId('d', s.drivers),
-        name: data.name.trim(), license: data.license.trim(), category: data.category,
-        expiry: data.expiry, contact: data.contact.trim(),
-        score: Number(data.score) || 0, status: 'Available',
-      }
-      return { ...s, drivers: [driver, ...s.drivers] }
-    })
+      return { ok: false, error: error.message }
+    }
+    setVehicles((prev) => [inserted, ...prev])
     return { ok: true }
   }, [])
 
-  const updateDriver = useCallback((id, data) => {
-    setState((s) => ({
-      ...s,
-      drivers: s.drivers.map((d) => d.id === id ? {
-        ...d, name: data.name.trim(), license: data.license.trim(), category: data.category,
-        expiry: data.expiry, contact: data.contact.trim(), score: Number(data.score) || 0,
-        status: data.status || d.status,
-      } : d),
-    }))
+  const updateVehicle = useCallback(async (id, data) => {
+    if (!supabaseReady) return { ok: false, error: 'Supabase is not configured' }
+    const { data: updated, error } = await supabase
+      .from('vehicles')
+      .update({
+        reg: data.reg.trim(),
+        name: data.name.trim(),
+        type: data.type,
+        capacity: Number(data.capacity),
+        odometer: Number(data.odometer) || 0,
+        cost: Number(data.cost) || 0,
+        status: data.status,
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      if (error.code === '23505') {
+        return { ok: false, error: `Registration ${data.reg} already exists` }
+      }
+      return { ok: false, error: error.message }
+    }
+    setVehicles((prev) => prev.map((v) => v.id === id ? updated : v))
     return { ok: true }
   }, [])
 
-  const deleteDriver = useCallback((id) => {
-    setState((s) => ({ ...s, drivers: s.drivers.filter((d) => d.id !== id) }))
+  const deleteVehicle = useCallback(async (id) => {
+    if (!supabaseReady) return { ok: false, error: 'Supabase is not configured' }
+    const { error } = await supabase.from('vehicles').delete().eq('id', id)
+    if (error) return { ok: false, error: error.message }
+    setVehicles((prev) => prev.filter((v) => v.id !== id))
+    return { ok: true }
   }, [])
 
-  // Safety Officer actions
-  const setDriverStatus = useCallback((id, status) => {
-    setState((s) => ({ ...s, drivers: s.drivers.map((d) => d.id === id ? { ...d, status } : d) }))
+  // ---------- Drivers Actions ----------
+  const addDriver = useCallback(async (data) => {
+    if (!supabaseReady) return { ok: false, error: 'Supabase is not configured' }
+    const { data: inserted, error } = await supabase
+      .from('drivers')
+      .insert({
+        name: data.name.trim(),
+        license: data.license.trim(),
+        category: data.category,
+        expiry: data.expiry,
+        contact: data.contact.trim(),
+        score: Number(data.score) || 0,
+        status: 'Available',
+      })
+      .select()
+      .single()
+
+    if (error) return { ok: false, error: error.message }
+    setDrivers((prev) => [inserted, ...prev])
+    return { ok: true }
   }, [])
 
-  // ---------- Trips (core state machine) ----------
-  // Create as Draft after passing the 5 checks.
-  const createTrip = useCallback((data) => {
-    let result = { ok: true }
-    setState((s) => {
-      const vehicle = s.vehicles.find((v) => v.id === data.vehicleId)
-      const driver = s.drivers.find((d) => d.id === data.driverId)
-      const { ok, errors } = validateTrip({ vehicle, driver, cargo: data.cargo })
-      if (!ok) { result = { ok: false, errors }; return s }
-      const trip = {
-        id: nextId('TR-', s.trips),
-        source: data.source.trim(), dest: data.dest.trim(),
-        vehicleId: data.vehicleId, driverId: data.driverId,
-        cargo: Number(data.cargo), distance: Number(data.distance) || 0,
-        revenue: Number(data.revenue) || 0, status: 'Draft',
-      }
-      return { ...s, trips: [trip, ...s.trips] }
+  const updateDriver = useCallback(async (id, data) => {
+    if (!supabaseReady) return { ok: false, error: 'Supabase is not configured' }
+    const { data: updated, error } = await supabase
+      .from('drivers')
+      .update({
+        name: data.name.trim(),
+        license: data.license.trim(),
+        category: data.category,
+        expiry: data.expiry,
+        contact: data.contact.trim(),
+        score: Number(data.score) || 0,
+        status: data.status,
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) return { ok: false, error: error.message }
+    setDrivers((prev) => prev.map((d) => d.id === id ? updated : d))
+    return { ok: true }
+  }, [])
+
+  const deleteDriver = useCallback(async (id) => {
+    if (!supabaseReady) return { ok: false, error: 'Supabase is not configured' }
+    const { error } = await supabase.from('drivers').delete().eq('id', id)
+    if (error) return { ok: false, error: error.message }
+    setDrivers((prev) => prev.filter((d) => d.id !== id))
+    return { ok: true }
+  }, [])
+
+  const setDriverStatus = useCallback(async (id, status) => {
+    if (!supabaseReady) return { ok: false, error: 'Supabase is not configured' }
+    const { data: updated, error } = await supabase
+      .from('drivers')
+      .update({ status })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) return { ok: false, error: error.message }
+    setDrivers((prev) => prev.map((d) => d.id === id ? updated : d))
+    return { ok: true }
+  }, [])
+
+  // ---------- Trips (State Machine via RPC) ----------
+  const createTrip = useCallback(async (data) => {
+    if (!supabaseReady) return { ok: false, error: 'Supabase is not configured' }
+    const { data: res, error } = await supabase.rpc('create_trip', {
+      p_source: data.source.trim(),
+      p_dest: data.dest.trim(),
+      p_vehicle_id: data.vehicleId,
+      p_driver_id: data.driverId,
+      p_cargo: Number(data.cargo),
+      p_distance: Number(data.distance) || 0,
+      p_revenue: Number(data.revenue) || 0,
     })
-    return result
+
+    if (error) return { ok: false, error: error.message }
+    if (res && !res.ok) return { ok: false, errors: res.errors }
+    await fetchAllData()
+    return { ok: true }
+  }, [fetchAllData])
+
+  const dispatchTrip = useCallback(async (tripId) => {
+    if (!supabaseReady) return { ok: false, error: 'Supabase is not configured' }
+    const { data: res, error } = await supabase.rpc('dispatch_trip', { p_trip_id: tripId })
+    if (error) return { ok: false, error: error.message }
+    if (res && !res.ok) return { ok: false, error: res.error }
+    await fetchAllData()
+    return { ok: true }
+  }, [fetchAllData])
+
+  const completeTrip = useCallback(async (tripId, { finalOdometer, fuelConsumed } = {}) => {
+    if (!supabaseReady) return { ok: false, error: 'Supabase is not configured' }
+    const { data: res, error } = await supabase.rpc('complete_trip', {
+      p_trip_id: tripId,
+      p_final_odometer: Number(finalOdometer) || null,
+      p_fuel_consumed: Number(fuelConsumed) || null,
+    })
+    if (error) return { ok: false, error: error.message }
+    if (res && !res.ok) return { ok: false, error: res.error }
+    await fetchAllData()
+    return { ok: true }
+  }, [fetchAllData])
+
+  const cancelTrip = useCallback(async (tripId) => {
+    if (!supabaseReady) return { ok: false, error: 'Supabase is not configured' }
+    const { data: res, error } = await supabase.rpc('cancel_trip', { p_trip_id: tripId })
+    if (error) return { ok: false, error: error.message }
+    if (res && !res.ok) return { ok: false, error: res.error }
+    await fetchAllData()
+    return { ok: true }
+  }, [fetchAllData])
+
+  // ---------- Maintenance Actions ----------
+  const addMaintenance = useCallback(async (data) => {
+    if (!supabaseReady) return { ok: false, error: 'Supabase is not configured' }
+    const { data: inserted, error } = await supabase
+      .from('maintenance')
+      .insert({
+        vehicle_id: data.vehicleId,
+        date: data.date,
+        description: data.description.trim(),
+        cost: Number(data.cost) || 0,
+        status: data.status,
+      })
+      .select()
+      .single()
+
+    if (error) return { ok: false, error: error.message }
+    setMaintenance((prev) => [mapMaintenanceFromDb(inserted), ...prev])
+    return { ok: true }
   }, [])
 
-  // Draft -> Dispatched : vehicle + driver both become On Trip.
-  const dispatchTrip = useCallback((tripId) => {
-    let result = { ok: true }
-    setState((s) => {
-      const trip = s.trips.find((t) => t.id === tripId)
-      if (!trip || trip.status !== 'Draft') { result = { ok: false, error: 'Trip is not in Draft' }; return s }
-      const vehicle = s.vehicles.find((v) => v.id === trip.vehicleId)
-      const driver = s.drivers.find((d) => d.id === trip.driverId)
-      const { ok, errors } = validateTrip({ vehicle, driver, cargo: trip.cargo })
-      if (!ok) { result = { ok: false, error: Object.values(errors)[0] }; return s }
-      return {
-        ...s,
-        trips: s.trips.map((t) => t.id === tripId ? { ...t, status: 'Dispatched' } : t),
-        vehicles: s.vehicles.map((v) => v.id === trip.vehicleId ? { ...v, status: 'On Trip' } : v),
-        drivers: s.drivers.map((d) => d.id === trip.driverId ? { ...d, status: 'On Trip' } : d),
-      }
-    })
-    return result
+  const updateMaintenance = useCallback(async (id, data) => {
+    if (!supabaseReady) return { ok: false, error: 'Supabase is not configured' }
+    const { data: updated, error } = await supabase
+      .from('maintenance')
+      .update({
+        vehicle_id: data.vehicleId,
+        date: data.date,
+        description: data.description.trim(),
+        cost: Number(data.cost) || 0,
+        status: data.status,
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) return { ok: false, error: error.message }
+    setMaintenance((prev) => prev.map((m) => m.id === id ? mapMaintenanceFromDb(updated) : m))
+    return { ok: true }
   }, [])
 
-  // Dispatched -> Completed : restore Available, update odometer + fuel.
-  const completeTrip = useCallback((tripId, { finalOdometer, fuelConsumed } = {}) => {
-    let result = { ok: true }
-    setState((s) => {
-      const trip = s.trips.find((t) => t.id === tripId)
-      if (!trip || trip.status !== 'Dispatched') { result = { ok: false, error: 'Trip is not dispatched' }; return s }
-      return {
-        ...s,
-        trips: s.trips.map((t) => t.id === tripId ? {
-          ...t, status: 'Completed',
-          finalOdometer: Number(finalOdometer) || undefined,
-          fuelConsumed: Number(fuelConsumed) || undefined,
-        } : t),
-        vehicles: s.vehicles.map((v) => v.id === trip.vehicleId ? {
-          ...v, status: 'Available',
-          odometer: Number(finalOdometer) > v.odometer ? Number(finalOdometer) : v.odometer,
-        } : v),
-        drivers: s.drivers.map((d) => d.id === trip.driverId ? { ...d, status: 'Available' } : d),
-      }
-    })
-    return result
+  // ---------- Expenses Actions ----------
+  const addExpense = useCallback(async (data) => {
+    if (!supabaseReady) return { ok: false, error: 'Supabase is not configured' }
+    const { data: inserted, error } = await supabase
+      .from('expenses')
+      .insert({
+        vehicle_id: data.vehicleId,
+        date: data.date,
+        type: data.type,
+        amount: Number(data.amount) || 0,
+        notes: data.notes ? data.notes.trim() : '',
+      })
+      .select()
+      .single()
+
+    if (error) return { ok: false, error: error.message }
+    setExpenses((prev) => [mapExpenseFromDb(inserted), ...prev])
+    return { ok: true }
   }, [])
 
-  // Any time -> Cancelled : restore vehicle + driver to Available.
-  const cancelTrip = useCallback((tripId) => {
-    setState((s) => {
-      const trip = s.trips.find((t) => t.id === tripId)
-      if (!trip || (trip.status !== 'Draft' && trip.status !== 'Dispatched')) return s
-      return {
-        ...s,
-        trips: s.trips.map((t) => t.id === tripId ? { ...t, status: 'Cancelled' } : t),
-        vehicles: s.vehicles.map((v) => v.id === trip.vehicleId && trip.status === 'Dispatched' ? { ...v, status: 'Available' } : v),
-        drivers: s.drivers.map((d) => d.id === trip.driverId && trip.status === 'Dispatched' ? { ...d, status: 'Available' } : d),
-      }
-    })
+  const updateExpense = useCallback(async (id, data) => {
+    if (!supabaseReady) return { ok: false, error: 'Supabase is not configured' }
+    const { data: updated, error } = await supabase
+      .from('expenses')
+      .update({
+        vehicle_id: data.vehicleId,
+        date: data.date,
+        type: data.type,
+        amount: Number(data.amount) || 0,
+        notes: data.notes ? data.notes.trim() : '',
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) return { ok: false, error: error.message }
+    setExpenses((prev) => prev.map((e) => e.id === id ? mapExpenseFromDb(updated) : e))
     return { ok: true }
   }, [])
 
   const value = useMemo(() => ({
-    ...state,
+    vehicles, drivers, trips, maintenance, expenses,
     addVehicle, updateVehicle, deleteVehicle,
     addDriver, updateDriver, deleteDriver, setDriverStatus,
     createTrip, dispatchTrip, completeTrip, cancelTrip,
+    addMaintenance, updateMaintenance, addExpense, updateExpense,
     resetDemo,
-  }), [state, addVehicle, updateVehicle, deleteVehicle, addDriver, updateDriver,
-       deleteDriver, setDriverStatus, createTrip, dispatchTrip, completeTrip, cancelTrip, resetDemo])
+  }), [
+    vehicles, drivers, trips, maintenance, expenses,
+    addVehicle, updateVehicle, deleteVehicle,
+    addDriver, updateDriver, deleteDriver, setDriverStatus,
+    createTrip, dispatchTrip, completeTrip, cancelTrip,
+    addMaintenance, updateMaintenance, addExpense, updateExpense,
+    resetDemo,
+  ])
 
   return <AppDataCtx.Provider value={value}>{children}</AppDataCtx.Provider>
 }
+

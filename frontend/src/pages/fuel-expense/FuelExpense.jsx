@@ -89,10 +89,9 @@ function ExpenseForm({ open, initial, onSubmit, onClose, vehicles }) {
 }
 
 export default function FuelExpense() {
-  const { vehicles } = useAppData()
+  const { vehicles, expenses: records, addExpense, updateExpense } = useAppData()
   const toast = useToast()
   
-  const [records, setRecords] = useState(initialExpenses)
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState('All')
   const [formOpen, setFormOpen] = useState(false)
@@ -110,16 +109,26 @@ export default function FuelExpense() {
   const openAdd = () => { setEditing(null); setFormOpen(true) }
   const openEdit = (r) => { setEditing(r); setFormOpen(true) }
 
-  const handleSubmit = (data) => {
+  const handleSubmit = async (data) => {
     if (editing) {
-      setRecords(records.map(r => r.id === editing.id ? { ...r, ...data } : r))
-      toast.success('Expense updated')
+      const res = await updateExpense(editing.id, data)
+      if (res.ok) {
+        toast.success('Expense updated')
+        setFormOpen(false)
+      } else {
+        toast.error(res.error || 'Failed to update expense')
+      }
     } else {
-      setRecords([{ ...data, id: `E-${Date.now()}` }, ...records])
-      toast.success('Expense logged')
+      const res = await addExpense(data)
+      if (res.ok) {
+        toast.success('Expense logged')
+        setFormOpen(false)
+      } else {
+        toast.error(res.error || 'Failed to log expense')
+      }
     }
-    setFormOpen(false)
   }
+
 
   return (
     <div>
