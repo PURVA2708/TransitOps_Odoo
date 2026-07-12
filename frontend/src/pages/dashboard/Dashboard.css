@@ -1,0 +1,33 @@
+.dash-header {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: var(--sp-lg); flex-wrap: wrap;
+}
+.dash-filter { display: flex; flex-direction: column; gap: 4px; }
+.dash-filter-label { font-size: 11px; font-weight: 700; color: var(--coffee); text-transform: uppercase; letter-spacing: .5px; }
+.dash-select {
+  height: 38px; border: 1.5px solid var(--sand); border-radius: var(--r-md);
+  background: var(--white); padding: 0 12px; font-size: 13px; color: var(--espresso);
+  font-family: var(--font-sans); cursor: pointer; min-width: 150px;
+}
+.dash-select:focus { outline: none; border-color: var(--brand-600); box-shadow: 0 0 0 3px var(--brand-100); }
+
+/* Two-column split */
+.dash-split { display: grid; grid-template-columns: 1fr 1.4fr; gap: var(--sp-lg); align-items: start; }
+@media (max-width: 900px) { .dash-split { grid-template-columns: 1fr; } }
+
+/* Fleet status bars */
+.bar-row { display: flex; flex-direction: column; gap: 6px; }
+.bar-top { display: flex; align-items: center; justify-content: space-between; }
+.bar-count { font-weight: 700; color: var(--espresso); font-size: 14px; }
+.bar-track { height: 9px; background: var(--linen); border-radius: var(--r-pill); overflow: hidden; }
+.bar-fill { height: 100%; border-radius: var(--r-pill); }
+.bar-available { background: var(--green); }
+.bar-ontrip    { background: var(--blue); }
+.bar-inshop    { background: var(--amber); }
+.bar-retired   { background: var(--red); }
+
+.dash-filter { align-items: flex-start; }
+@media (max-width: 560px) {
+  .dash-filter { width: 100%; }
+  .dash-select { width: 100%; }
+}
