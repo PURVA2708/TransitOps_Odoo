@@ -752,6 +752,12 @@ We welcome contributions to TransitOps. To contribute, please follow these steps
 
 ---
 
+------------ Team Members -----------
+Frontend_Parth
+Frontend_Tirth
+Backend_Purva
+Backend_Om
+
 <div align="center">
 
 *Automatic status transitions and business rule enforcement are the foundation of TransitOps.*
