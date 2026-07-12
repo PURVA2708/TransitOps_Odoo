@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useAppData } from '../../store/AppData'
+import { usePrefs } from '../../context/PrefsContext'
 import PageHeader from '../../components/ui/PageHeader'
 import Card from '../../components/ui/Card'
 import KpiCard from '../../components/ui/KpiCard'
@@ -8,6 +9,7 @@ import Icon from '../../components/ui/Icon'
 
 export default function Reports() {
   const { trips, vehicles } = useAppData()
+  const prefs = usePrefs()
 
   const { totalRevenue, totalDistance, completedTrips } = useMemo(() => {
     let rev = 0
@@ -81,10 +83,10 @@ export default function Reports() {
       </PageHeader>
 
       <div className="kpi-grid">
-        <KpiCard icon="clipboard" accent="green" value={`₹${totalRevenue.toLocaleString('en-IN')}`} label="Total Revenue" hint="From completed trips" />
-        <KpiCard icon="route" accent="blue" value={`${totalDistance.toLocaleString('en-IN')} km`} label="Total Distance" hint="Across all completed trips" />
+        <KpiCard icon="clipboard" accent="green" value={prefs.money(totalRevenue)} label="Total Revenue" hint="From completed trips" />
+        <KpiCard icon="route" accent="blue" value={prefs.dist(totalDistance)} label="Total Distance" hint="Across all completed trips" />
         <KpiCard icon="checkCircle" accent="brand" value={completedTrips} label="Completed Trips" hint="Total successful deliveries" />
-        <KpiCard icon="truck" accent="gray" value={`₹${totalVehicleCost.toLocaleString('en-IN')}`} label="Fleet Acquisition Cost" hint="Total investment in vehicles" />
+        <KpiCard icon="truck" accent="gray" value={prefs.money(totalVehicleCost)} label="Fleet Acquisition Cost" hint="Total investment in vehicles" />
       </div>
 
       <div className="dash-split">
@@ -110,8 +112,8 @@ export default function Reports() {
                   roiData.map(v => (
                     <tr key={v.id}>
                       <td data-label="Vehicle"><strong>{v.reg}</strong> <br/><span className="muted" style={{fontSize: 12}}>{v.name}</span></td>
-                      <td data-label="Acq. Cost" className="text-num">₹{v.cost.toLocaleString('en-IN')}</td>
-                      <td data-label="Total Revenue" className="text-num">₹{v.revenue.toLocaleString('en-IN')}</td>
+                      <td data-label="Acq. Cost" className="text-num">{prefs.money(v.cost)}</td>
+                      <td data-label="Total Revenue" className="text-num">{prefs.money(v.revenue)}</td>
                       <td data-label="ROI" className="text-num">{v.roi !== 'N/A' ? `${v.roi}%` : 'N/A'}</td>
                     </tr>
                   ))
@@ -141,8 +143,16 @@ export default function Reports() {
               })
               const pieData = Object.entries(revenueByType).map(([type, revenue]) => ({ type, revenue })).sort((a,b) => b.revenue - a.revenue)
               const totalPieRev = pieData.reduce((acc, curr) => acc + curr.revenue, 0)
-              const pieColors = ['#C05621', '#1F6E8C', '#2F7A4D', '#D98A29', '#B23A2E']
-              
+              // Gradient palette (start → end) matching the burgundy/teal/gold theme.
+              const pieGrads = [
+                ['#34586A', '#4F7C93'], // frozen marrow
+                ['#6E90A8', '#9BBACD'], // dusty blue
+                ['#8FB3C2', '#C3DBE3'], // ice blue
+                ['#4F7A5F', '#78AB88'], // sage
+                ['#7A8699', '#A9B4C4'], // slate
+              ]
+              const gradCss = (i) => `linear-gradient(135deg, ${pieGrads[i % pieGrads.length][0]}, ${pieGrads[i % pieGrads.length][1]})`
+
               if (totalPieRev === 0) {
                 return <p className="muted" style={{ textAlign: 'center', padding: 'var(--sp-xl) 0' }}>No revenue data yet.</p>
               }
@@ -151,37 +161,51 @@ export default function Reports() {
 
               return (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-xl)', padding: 'var(--sp-md) 0' }}>
-                  <svg width="120" height="120" viewBox="0 0 42 42" style={{ overflow: 'visible' }}>
-                    <circle cx="21" cy="21" r="15.915494309189533" fill="transparent" stroke="#F4ECE3" strokeWidth="8" />
-                    {pieData.map((item, i) => {
-                      if (item.revenue === 0) return null
-                      const percent = (item.revenue / totalPieRev) * 100
-                      const dasharray = `${percent} ${100 - percent}`
-                      const offset = 25 - cumulative
-                      cumulative += percent
-                      
-                      return (
-                        <circle
-                          key={item.type}
-                          cx="21"
-                          cy="21"
-                          r="15.915494309189533"
-                          fill="transparent"
-                          stroke={pieColors[i % pieColors.length]}
-                          strokeWidth="8"
-                          strokeDasharray={dasharray}
-                          strokeDashoffset={offset}
-                          style={{ transition: 'stroke-dasharray 0.5s ease' }}
-                        />
-                      )
-                    })}
-                  </svg>
+                  <div style={{ position: 'relative', width: 140, height: 140, flexShrink: 0 }}>
+                    <svg width="140" height="140" viewBox="0 0 42 42" style={{ transform: 'rotate(-90deg)' }}>
+                      <defs>
+                        {pieData.map((item, i) => (
+                          <linearGradient key={item.type} id={`pie-grad-${i}`} x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor={pieGrads[i % pieGrads.length][0]} />
+                            <stop offset="100%" stopColor={pieGrads[i % pieGrads.length][1]} />
+                          </linearGradient>
+                        ))}
+                      </defs>
+                      <circle cx="21" cy="21" r="15.915494309189533" fill="transparent" stroke="var(--linen)" strokeWidth="7" />
+                      {pieData.map((item, i) => {
+                        if (item.revenue === 0) return null
+                        const percent = (item.revenue / totalPieRev) * 100
+                        const dasharray = `${percent} ${100 - percent}`
+                        const offset = 25 - cumulative
+                        cumulative += percent
+                        return (
+                          <circle
+                            key={item.type}
+                            cx="21" cy="21" r="15.915494309189533"
+                            fill="transparent"
+                            stroke={`url(#pie-grad-${i})`}
+                            strokeWidth="7" strokeLinecap="round"
+                            strokeDasharray={dasharray}
+                            strokeDashoffset={offset}
+                            style={{ transition: 'stroke-dasharray 0.6s ease' }}
+                          />
+                        )
+                      })}
+                    </svg>
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                      <span style={{ fontFamily: 'var(--font-serif)', fontWeight: 700, fontSize: 18, color: 'var(--espresso)' }}>{prefs.money(totalPieRev)}</span>
+                      <span className="muted" style={{ fontSize: 11 }}>total revenue</span>
+                    </div>
+                  </div>
                   <div className="stack gap-sm" style={{ flex: 1 }}>
                     {pieData.filter(item => item.revenue > 0).map((item, i) => (
-                      <div key={item.type} className="row" style={{ gap: 'var(--sp-xs)', alignItems: 'center' }}>
-                        <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: pieColors[i % pieColors.length], flexShrink: 0 }} />
+                      <div key={item.type} className="row" style={{ gap: 'var(--sp-sm)', alignItems: 'center' }}>
+                        <div style={{ width: 12, height: 12, borderRadius: 3, background: gradCss(i), flexShrink: 0 }} />
                         <span style={{ fontSize: 13, flex: 1 }}>{item.type}</span>
-                        <strong style={{ fontSize: 13 }}>₹{item.revenue.toLocaleString('en-IN')}</strong>
+                        <strong style={{ fontSize: 13 }}>{prefs.money(item.revenue)}</strong>
+                        <span className="muted" style={{ fontSize: 11, minWidth: 34, textAlign: 'right' }}>
+                          {Math.round((item.revenue / totalPieRev) * 100)}%
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -203,7 +227,7 @@ export default function Reports() {
                   <div key={v.id} className="bar-row">
                     <div className="bar-top">
                       <strong>{v.reg}</strong>
-                      <span className="bar-count">₹{v.revenue.toLocaleString('en-IN')}</span>
+                      <span className="bar-count">{prefs.money(v.revenue)}</span>
                     </div>
                     <div className="bar-track">
                       <div

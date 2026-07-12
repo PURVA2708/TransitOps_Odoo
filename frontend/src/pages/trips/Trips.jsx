@@ -3,6 +3,7 @@
 // dispatch validation enforced by the store.
 import { useMemo, useState } from 'react'
 import { useAppData } from '../../store/AppData'
+import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../components/ui/Toast'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
@@ -16,6 +17,8 @@ import { Input, Select } from '../../components/ui/Field'
 import { useSortable } from '../../hooks/useSortable'
 import TripForm from './TripForm'
 import CompleteTripModal from './CompleteTripModal'
+import TripBoard from './TripBoard'
+import './Trips.css'
 
 const TRIP_SORT = {
   id: (t) => t.id, route: (t) => t.source, vehicle: (t) => t.vehicle?.reg || '',
@@ -23,7 +26,8 @@ const TRIP_SORT = {
 }
 
 export default function Trips() {
-  const { trips, vehicles, drivers, createTrip, dispatchTrip, completeTrip, cancelTrip } = useAppData()
+  const { trips, vehicles, drivers, createTrip, dispatchTrip, shipTrip, completeTrip, cancelTrip } = useAppData()
+  const { user } = useAuth()
   const toast = useToast()
 
   const [query, setQuery] = useState('')
@@ -40,14 +44,21 @@ export default function Trips() {
     driver: byId(drivers, t.driverId),
   })), [trips, vehicles, drivers])
 
-  const filtered = useMemo(() => rows.filter((t) => {
+  // Data scoping: a Driver sees only trips assigned to them; every other
+  // role (Manager, Safety Officer, Financial Analyst) sees all trips.
+  const visibleRows = useMemo(() => {
+    if (user?.role === 'Driver') return rows.filter((t) => t.driver?.name === user.name)
+    return rows
+  }, [rows, user])
+
+  const filtered = useMemo(() => visibleRows.filter((t) => {
     const q = query.trim().toLowerCase()
     const matchesQ = !q || t.id.toLowerCase().includes(q) ||
       t.source.toLowerCase().includes(q) || t.dest.toLowerCase().includes(q) ||
       (t.driver?.name || '').toLowerCase().includes(q)
     const matchesS = statusFilter === 'All' || t.status === statusFilter
     return matchesQ && matchesS
-  }), [rows, query, statusFilter])
+  }), [visibleRows, query, statusFilter])
 
   const { sorted, sortKey, sortDir, toggle } = useSortable(filtered, TRIP_SORT)
 
@@ -62,6 +73,12 @@ export default function Trips() {
     const res = dispatchTrip(t.id)
     if (res.ok) toast.success(`${t.id} dispatched — vehicle & driver now On Trip`)
     else toast.error(res.error || 'Cannot dispatch')
+  }
+
+  const handleShip = (t) => {
+    const res = shipTrip(t.id)
+    if (res.ok) toast.success(`${t.id} shipped — now in transit`)
+    else toast.error(res.error || 'Cannot ship')
   }
 
   const handleComplete = ({ finalOdometer, fuelConsumed }) => {
@@ -83,13 +100,15 @@ export default function Trips() {
         <Button onClick={() => setFormOpen(true)}><Icon name="plus" size={16} /> Create Trip</Button>
       </PageHeader>
 
+      <TripBoard trips={visibleRows} />
+
       <div className="toolbar">
         <div className="search-box">
           <Icon name="search" size={16} className="icon" />
           <Input placeholder="Search trip, route, driver…" value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
         <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ width: 'auto' }}>
-          {['All', 'Draft', 'Dispatched', 'Completed', 'Cancelled'].map((s) => <option key={s}>{s}</option>)}
+          {['All', 'Draft', 'Dispatched', 'Shipped', 'Completed', 'Cancelled'].map((s) => <option key={s}>{s}</option>)}
         </Select>
       </div>
 
@@ -131,6 +150,12 @@ export default function Trips() {
                         </>
                       )}
                       {t.status === 'Dispatched' && (
+                        <>
+                          <Button size="sm" onClick={() => handleShip(t)}>Ship</Button>
+                          <Button size="sm" variant="ghost" onClick={() => setCancelling(t)}>Cancel</Button>
+                        </>
+                      )}
+                      {t.status === 'Shipped' && (
                         <>
                           <Button size="sm" onClick={() => setCompleting(t)}>Complete</Button>
                           <Button size="sm" variant="ghost" onClick={() => setCancelling(t)}>Cancel</Button>

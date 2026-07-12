@@ -1,6 +1,7 @@
 // Vehicle Registry (CRUD). Search + filter, add/edit modal, delete confirm.
 import { useMemo, useState } from 'react'
 import { useAppData } from '../../store/AppData'
+import { usePrefs } from '../../context/PrefsContext'
 import { useToast } from '../../components/ui/Toast'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
@@ -25,6 +26,7 @@ const inr = (n) => '₹' + Number(n || 0).toLocaleString('en-IN')
 
 export default function Vehicles() {
   const { vehicles, trips, addVehicle, updateVehicle, deleteVehicle } = useAppData()
+  const prefs = usePrefs()
   const toast = useToast()
 
   const [query, setQuery] = useState('')
@@ -109,7 +111,7 @@ export default function Vehicles() {
                   <td data-label="Name">{v.name}</td>
                   <td data-label="Type">{v.type}</td>
                   <td data-label="Capacity" className="text-num">{v.capacity} kg</td>
-                  <td data-label="Odometer" className="text-num">{v.odometer.toLocaleString('en-IN')} km</td>
+                  <td data-label="Odometer" className="text-num">{prefs.dist(v.odometer)}</td>
                   <td data-label="Status"><StatusPill status={v.status} /></td>
                   <td data-label="Actions">
                     <div className="cell-actions">

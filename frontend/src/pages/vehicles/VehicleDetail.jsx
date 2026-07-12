@@ -4,10 +4,10 @@ import Button from '../../components/ui/Button'
 import StatusPill from '../../components/ui/StatusPill'
 import { DetailList, DetailRow } from '../../components/ui/DetailList'
 import Icon from '../../components/ui/Icon'
-
-const inr = (n) => '₹' + Number(n || 0).toLocaleString('en-IN')
+import { usePrefs } from '../../context/PrefsContext'
 
 export default function VehicleDetail({ vehicle, trips, onClose, onEdit }) {
+  const prefs = usePrefs()
   if (!vehicle) return null
   const vTrips = trips.filter((t) => t.vehicleId === vehicle.id)
 
@@ -24,8 +24,8 @@ export default function VehicleDetail({ vehicle, trips, onClose, onEdit }) {
         <DetailRow label="Type">{vehicle.type}</DetailRow>
         <DetailRow label="Status"><StatusPill status={vehicle.status} /></DetailRow>
         <DetailRow label="Max Capacity">{vehicle.capacity.toLocaleString('en-IN')} kg</DetailRow>
-        <DetailRow label="Odometer">{vehicle.odometer.toLocaleString('en-IN')} km</DetailRow>
-        <DetailRow label="Acquisition Cost">{inr(vehicle.cost)}</DetailRow>
+        <DetailRow label="Odometer">{prefs.dist(vehicle.odometer)}</DetailRow>
+        <DetailRow label="Acquisition Cost">{prefs.money(vehicle.cost)}</DetailRow>
       </DetailList>
 
       <div className="detail-section-title">Trip history ({vTrips.length})</div>

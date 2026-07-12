@@ -25,6 +25,7 @@ export default function Topbar({ onMenu }) {
 
   const doSignOut = () => { signOut(); navigate('/login', { replace: true }) }
   const doReset = () => { resetDemo(); setMenuOpen(false); toast.success('Demo data reset') }
+  const goSettings = () => { setMenuOpen(false); navigate('/settings') }
 
   return (
     <header className="topbar">
@@ -59,6 +60,9 @@ export default function Topbar({ onMenu }) {
               <div className="text-strong">{user?.name}</div>
               <div className="muted" style={{ fontSize: 12 }}>{user?.email}</div>
             </div>
+            <button className="user-menu-item user-menu-item-neutral" role="menuitem" onClick={goSettings}>
+              <Icon name="settings" size={16} /> Settings
+            </button>
             <button className="user-menu-item user-menu-item-neutral" role="menuitem" onClick={doReset}>
               <Icon name="wrench" size={16} /> Reset demo data
             </button>

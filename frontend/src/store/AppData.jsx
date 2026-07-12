@@ -148,12 +148,23 @@ export function AppDataProvider({ children }) {
     return result
   }, [])
 
-  // Dispatched -> Completed : restore Available, update odometer + fuel.
-  const completeTrip = useCallback((tripId, { finalOdometer, fuelConsumed } = {}) => {
+  // Dispatched -> Shipped : goods are in transit (vehicle + driver stay On Trip).
+  const shipTrip = useCallback((tripId) => {
     let result = { ok: true }
     setState((s) => {
       const trip = s.trips.find((t) => t.id === tripId)
       if (!trip || trip.status !== 'Dispatched') { result = { ok: false, error: 'Trip is not dispatched' }; return s }
+      return { ...s, trips: s.trips.map((t) => t.id === tripId ? { ...t, status: 'Shipped' } : t) }
+    })
+    return result
+  }, [])
+
+  // Dispatched/Shipped -> Completed (Delivered) : restore Available, update odometer + fuel.
+  const completeTrip = useCallback((tripId, { finalOdometer, fuelConsumed } = {}) => {
+    let result = { ok: true }
+    setState((s) => {
+      const trip = s.trips.find((t) => t.id === tripId)
+      if (!trip || (trip.status !== 'Dispatched' && trip.status !== 'Shipped')) { result = { ok: false, error: 'Trip is not in transit' }; return s }
       return {
         ...s,
         trips: s.trips.map((t) => t.id === tripId ? {
@@ -175,12 +186,13 @@ export function AppDataProvider({ children }) {
   const cancelTrip = useCallback((tripId) => {
     setState((s) => {
       const trip = s.trips.find((t) => t.id === tripId)
-      if (!trip || (trip.status !== 'Draft' && trip.status !== 'Dispatched')) return s
+      if (!trip || !['Draft', 'Dispatched', 'Shipped'].includes(trip.status)) return s
+      const wasActive = trip.status === 'Dispatched' || trip.status === 'Shipped'
       return {
         ...s,
         trips: s.trips.map((t) => t.id === tripId ? { ...t, status: 'Cancelled' } : t),
-        vehicles: s.vehicles.map((v) => v.id === trip.vehicleId && trip.status === 'Dispatched' ? { ...v, status: 'Available' } : v),
-        drivers: s.drivers.map((d) => d.id === trip.driverId && trip.status === 'Dispatched' ? { ...d, status: 'Available' } : d),
+        vehicles: s.vehicles.map((v) => v.id === trip.vehicleId && wasActive ? { ...v, status: 'Available' } : v),
+        drivers: s.drivers.map((d) => d.id === trip.driverId && wasActive ? { ...d, status: 'Available' } : d),
       }
     })
     return { ok: true }
@@ -190,10 +202,10 @@ export function AppDataProvider({ children }) {
     ...state,
     addVehicle, updateVehicle, deleteVehicle,
     addDriver, updateDriver, deleteDriver, setDriverStatus,
-    createTrip, dispatchTrip, completeTrip, cancelTrip,
+    createTrip, dispatchTrip, shipTrip, completeTrip, cancelTrip,
     resetDemo,
   }), [state, addVehicle, updateVehicle, deleteVehicle, addDriver, updateDriver,
-       deleteDriver, setDriverStatus, createTrip, dispatchTrip, completeTrip, cancelTrip, resetDemo])
+       deleteDriver, setDriverStatus, createTrip, dispatchTrip, shipTrip, completeTrip, cancelTrip, resetDemo])
 
   return <AppDataCtx.Provider value={value}>{children}</AppDataCtx.Provider>
 }

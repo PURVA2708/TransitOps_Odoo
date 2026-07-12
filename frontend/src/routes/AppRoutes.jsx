@@ -15,6 +15,7 @@ import Trips from '../pages/trips/Trips'
 import Maintenance from '../pages/maintenance/Maintenance'
 import FuelExpense from '../pages/fuel-expense/FuelExpense'
 import Reports from '../pages/reports/Reports'
+import Settings from '../pages/settings/Settings'
 
 export default function AppRoutes() {
   return (
@@ -35,6 +36,9 @@ export default function AppRoutes() {
         <Route path="maintenance" element={<ProtectedRoute feature="maintenance"><Maintenance /></ProtectedRoute>} />
         <Route path="fuel-expense" element={<ProtectedRoute feature="fuelExpense"><FuelExpense /></ProtectedRoute>} />
         <Route path="reports" element={<ProtectedRoute feature="reports"><Reports /></ProtectedRoute>} />
+
+        {/* Settings — available to every signed-in user */}
+        <Route path="settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

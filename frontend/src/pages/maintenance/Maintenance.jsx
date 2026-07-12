@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useAppData } from '../../store/AppData'
+import { usePrefs } from '../../context/PrefsContext'
 import { useToast } from '../../components/ui/Toast'
 import PageHeader from '../../components/ui/PageHeader'
 import Button from '../../components/ui/Button'
@@ -9,6 +10,9 @@ import StatusPill from '../../components/ui/StatusPill'
 import EmptyState from '../../components/ui/EmptyState'
 import Modal from '../../components/ui/Modal'
 import { Field, Input, Select } from '../../components/ui/Field'
+import './Maintenance.css'
+
+const STATUS_CLASS = { 'Available': 'available', 'In Shop': 'inshop', 'On Trip': 'ontrip', 'Retired': 'retired' }
 
 // Local initial state for demo
 const initialMaintenance = [
@@ -17,6 +21,7 @@ const initialMaintenance = [
 ]
 
 function MaintenanceForm({ open, initial, onSubmit, onClose, vehicles }) {
+  const prefs = usePrefs()
   const editing = Boolean(initial)
   const [form, setForm] = useState(initial || { vehicleId: '', date: '', description: '', cost: '', status: 'In Shop' })
   const [errors, setErrors] = useState({})
@@ -72,7 +77,7 @@ function MaintenanceForm({ open, initial, onSubmit, onClose, vehicles }) {
           <Field label="Description" required error={errors.description} htmlFor="description">
             <Input id="description" value={form.description} onChange={set('description')} placeholder="e.g., Oil Change" />
           </Field>
-          <Field label="Cost (₹)" htmlFor="cost">
+          <Field label={`Cost (${prefs.currencySymbol})`} htmlFor="cost">
             <Input id="cost" type="number" min="0" value={form.cost} onChange={set('cost')} placeholder="1500" />
           </Field>
           <Field label="Status" htmlFor="status">
@@ -89,6 +94,7 @@ function MaintenanceForm({ open, initial, onSubmit, onClose, vehicles }) {
 
 export default function Maintenance() {
   const { vehicles } = useAppData()
+  const prefs = usePrefs()
   const toast = useToast()
   
   // Local state to keep this page independent
@@ -103,6 +109,28 @@ export default function Maintenance() {
     const v = vehicles.find(v => v.id === r.vehicleId)
     return r.description.toLowerCase().includes(q) || (v && v.reg.toLowerCase().includes(q))
   }), [records, query, vehicles])
+
+  // Live fleet status: counts + the current in-shop job and log count per vehicle.
+  const counts = useMemo(() => {
+    const c = { Available: 0, 'In Shop': 0, 'On Trip': 0, Retired: 0 }
+    vehicles.forEach((v) => { if (c[v.status] !== undefined) c[v.status]++ })
+    return c
+  }, [vehicles])
+
+  const activeJob = useMemo(() => {
+    const m = {}
+    records.forEach((r) => { if (r.status === 'In Shop') m[r.vehicleId] = r })
+    return m
+  }, [records])
+
+  const logCount = useMemo(() => {
+    const m = {}
+    records.forEach((r) => { m[r.vehicleId] = (m[r.vehicleId] || 0) + 1 })
+    return m
+  }, [records])
+
+  const activeReg = query.trim().toLowerCase()
+  const selectVehicle = (reg) => setQuery(activeReg === reg.toLowerCase() ? '' : reg)
 
   const openAdd = () => { setEditing(null); setFormOpen(true) }
   const openEdit = (r) => { setEditing(r); setFormOpen(true) }
@@ -123,6 +151,69 @@ export default function Maintenance() {
       <PageHeader title="Maintenance" subtitle="Track vehicle repairs and servicing">
         <Button onClick={openAdd}><Icon name="plus" size={16} /> Add Record</Button>
       </PageHeader>
+
+      {/* Live fleet availability board */}
+      <section className="fleet-board">
+        <div className="fleet-board-head">
+          <h2><Icon name="truck" size={18} /> Fleet Availability</h2>
+        </div>
+
+        <div className="fleet-summary">
+          <div className="fleet-stat available">
+            <div className="fleet-stat-value">{counts.Available}</div>
+            <div className="fleet-stat-label"><Icon name="checkCircle" size={14} /> Available</div>
+          </div>
+          <div className="fleet-stat inshop">
+            <div className="fleet-stat-value">{counts['In Shop']}</div>
+            <div className="fleet-stat-label"><Icon name="wrench" size={14} /> In the Shop</div>
+          </div>
+          <div className="fleet-stat ontrip">
+            <div className="fleet-stat-value">{counts['On Trip']}</div>
+            <div className="fleet-stat-label"><Icon name="route" size={14} /> On Trip</div>
+          </div>
+          <div className="fleet-stat retired">
+            <div className="fleet-stat-value">{counts.Retired}</div>
+            <div className="fleet-stat-label"><Icon name="truck" size={14} /> Retired</div>
+          </div>
+        </div>
+
+        <div className="fleet-grid">
+          {vehicles.map((v) => {
+            const cls = STATUS_CLASS[v.status] || ''
+            const active = activeReg === v.reg.toLowerCase()
+            const job = activeJob[v.id]
+            const n = logCount[v.id] || 0
+            return (
+              <button
+                key={v.id}
+                type="button"
+                className={`fleet-vehicle ${cls} ${active ? 'is-active' : ''}`}
+                onClick={() => selectVehicle(v.reg)}
+                title="Show this vehicle's service log"
+              >
+                <div className="fleet-vehicle-top">
+                  <span className="fleet-vehicle-reg">{v.reg}</span>
+                  <StatusPill status={v.status} />
+                </div>
+                <span className="fleet-vehicle-name">{v.name}</span>
+                {v.status === 'In Shop' && job && (
+                  <span className="fleet-vehicle-note"><Icon name="wrench" size={12} /> {job.description}</span>
+                )}
+                <span className="fleet-vehicle-count">{n} service {n === 1 ? 'record' : 'records'}</span>
+              </button>
+            )
+          })}
+        </div>
+      </section>
+
+      <div className="service-log-head">
+        <h2><Icon name="clipboard" size={18} /> Service Logs</h2>
+        {query.trim() && (
+          <button type="button" className="service-log-clear" onClick={() => setQuery('')}>
+            Filtered by “{query}” ✕
+          </button>
+        )}
+      </div>
 
       <div className="toolbar">
         <div className="search-box">
@@ -158,7 +249,7 @@ export default function Maintenance() {
                     <td data-label="Vehicle"><strong>{v ? v.reg : r.vehicleId}</strong></td>
                     <td data-label="Date">{r.date}</td>
                     <td data-label="Description">{r.description}</td>
-                    <td data-label="Cost" className="text-num">₹{Number(r.cost || 0).toLocaleString('en-IN')}</td>
+                    <td data-label="Cost" className="text-num">{prefs.money(r.cost)}</td>
                     <td data-label="Status"><StatusPill status={r.status} /></td>
                     <td data-label="Actions">
                       <div className="cell-actions">

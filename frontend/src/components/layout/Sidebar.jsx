@@ -28,6 +28,16 @@ export default function Sidebar({ open, onClose }) {
             <span className="nav-label">{item.label}</span>
           </NavLink>
         ))}
+
+        {/* Settings — available to everyone, kept separate from the frozen nav set */}
+        <NavLink
+          to="/settings"
+          className={({ isActive }) => `nav-link ${isActive ? 'nav-link-active' : ''}`}
+          onClick={onClose}
+        >
+          <span className="nav-icon"><Icon name="settings" size={19} /></span>
+          <span className="nav-label">Settings</span>
+        </NavLink>
       </nav>
 
       <div className="sidebar-foot muted">Smart Transport Ops</div>
