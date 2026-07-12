@@ -50,18 +50,23 @@ export default function Drivers() {
   const openAdd = () => { setEditing(null); setFormOpen(true) }
   const openEdit = (d) => { setEditing(d); setFormOpen(true) }
 
-  const handleSubmit = (data) => {
-    const res = editing ? updateDriver(editing.id, data) : addDriver(data)
+  const handleSubmit = async (data) => {
+    const res = editing ? await updateDriver(editing.id, data) : await addDriver(data)
     if (res.ok) { toast.success(editing ? 'Driver updated' : 'Driver added'); setFormOpen(false) }
     return res
   }
 
-  const confirmDelete = () => { deleteDriver(toDelete.id); toast.success(`Deleted ${toDelete.name}`); setToDelete(null) }
+  const confirmDelete = async () => {
+    const res = await deleteDriver(toDelete.id)
+    if (res?.ok === false) toast.error(res.error || 'Delete failed')
+    else toast.success(`Deleted ${toDelete.name}`)
+    setToDelete(null)
+  }
 
-  const toggleSuspend = (d) => {
-    if (d.status === 'Suspended') { setDriverStatus(d.id, 'Available'); toast.success(`${d.name} reinstated`) }
+  const toggleSuspend = async (d) => {
+    if (d.status === 'Suspended') { await setDriverStatus(d.id, 'Available'); toast.success(`${d.name} reinstated`) }
     else if (d.status === 'On Trip') { toast.error('Cannot suspend a driver who is on a trip') }
-    else { setDriverStatus(d.id, 'Suspended'); toast.info(`${d.name} suspended`) }
+    else { await setDriverStatus(d.id, 'Suspended'); toast.info(`${d.name} suspended`) }
   }
 
   const fmtDate = (s) => new Date(s).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })

@@ -30,12 +30,12 @@ export default function DriverForm({ open, initial, onSubmit, onClose }) {
     return er
   }
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
     const er = validate()
     setErrors(er)
     if (Object.keys(er).length) return
-    const res = onSubmit(form)
+    const res = await onSubmit(form)
     if (res && !res.ok) setErrors({ license: res.error })
   }
 

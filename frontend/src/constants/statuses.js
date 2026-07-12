@@ -16,17 +16,16 @@ export const DRIVER_STATUS = {
 export const TRIP_STATUS = {
   DRAFT: 'Draft',
   DISPATCHED: 'Dispatched',
-  SHIPPED: 'Shipped',
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
 }
 // Ordered lifecycle stages for the live route board (Delivered == Completed).
-export const TRIP_STAGES = ['Draft', 'Dispatched', 'Shipped', 'Delivered']
+// Matches the backend trip state machine (Draft → Dispatched → Completed).
+export const TRIP_STAGES = ['Draft', 'Dispatched', 'Delivered']
 export function tripStageIndex(status) {
   if (status === 'Draft') return 0
   if (status === 'Dispatched') return 1
-  if (status === 'Shipped') return 2
-  if (status === 'Completed') return 3
+  if (status === 'Completed') return 2
   return -1 // Cancelled / unknown
 }
 export const MAINTENANCE_STATUS = {

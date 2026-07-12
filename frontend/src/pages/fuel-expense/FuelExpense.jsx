@@ -137,6 +137,8 @@ const csvCell = (val) => {
 
 export default function FuelExpense() {
   const { vehicles, expenses: records, addExpense, updateExpense } = useAppData()
+  const prefs = usePrefs()
+  const { user } = useAuth()
   const toast = useToast()
   const [query, setQuery] = useState('')
   const [formOpen, setFormOpen] = useState(false)
@@ -187,6 +189,30 @@ export default function FuelExpense() {
     }
   }
 
+  // CSV export — both sections plus Fuel / Expense / Grand totals.
+  const downloadCsv = () => {
+    const header = ['Section', 'Vehicle', 'Date', 'Type', `Amount (${prefs.currencyInfo.code})`, 'Notes']
+    const line = (section, r) => {
+      const v = vehicles.find((v) => v.id === r.vehicleId)
+      return [section, v?.reg || r.vehicleId, r.date, r.type, r.amount, r.notes].map(csvCell).join(',')
+    }
+    const rows = [
+      ...fuelRecords.map((r) => line('Fuel', r)),
+      ...expenseRecords.map((r) => line('Expense', r)),
+      '',
+      ['Fuel Total', '', '', '', fuelTotal, ''].map(csvCell).join(','),
+      ['Expense Total', '', '', '', expenseTotal, ''].map(csvCell).join(','),
+      ['Grand Total', '', '', '', grandTotal, ''].map(csvCell).join(','),
+    ]
+    const csv = [header.join(','), ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.setAttribute('download', 'transitops_fuel_expense.csv')
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 
   return (
     <div>

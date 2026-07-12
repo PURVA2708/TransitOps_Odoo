@@ -50,8 +50,8 @@ export default function Vehicles() {
   const openAdd = () => { setEditing(null); setFormOpen(true) }
   const openEdit = (v) => { setEditing(v); setFormOpen(true) }
 
-  const handleSubmit = (data) => {
-    const res = editing ? updateVehicle(editing.id, data) : addVehicle(data)
+  const handleSubmit = async (data) => {
+    const res = editing ? await updateVehicle(editing.id, data) : await addVehicle(data)
     if (res.ok) {
       toast.success(editing ? 'Vehicle updated' : 'Vehicle added')
       setFormOpen(false)
@@ -59,9 +59,10 @@ export default function Vehicles() {
     return res
   }
 
-  const confirmDelete = () => {
-    deleteVehicle(toDelete.id)
-    toast.success(`Deleted ${toDelete.reg}`)
+  const confirmDelete = async () => {
+    const res = await deleteVehicle(toDelete.id)
+    if (res?.ok === false) toast.error(res.error || 'Delete failed')
+    else toast.success(`Deleted ${toDelete.reg}`)
     setToDelete(null)
   }
 

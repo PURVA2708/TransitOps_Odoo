@@ -94,8 +94,9 @@ function MaintenanceForm({ open, initial, onSubmit, onClose, vehicles }) {
 
 export default function Maintenance() {
   const { vehicles, maintenance: records, addMaintenance, updateMaintenance } = useAppData()
+  const prefs = usePrefs()
   const toast = useToast()
-  
+
   const [query, setQuery] = useState('')
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState(null)

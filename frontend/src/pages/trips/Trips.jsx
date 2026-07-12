@@ -26,7 +26,7 @@ const TRIP_SORT = {
 }
 
 export default function Trips() {
-  const { trips, vehicles, drivers, createTrip, dispatchTrip, shipTrip, completeTrip, cancelTrip } = useAppData()
+  const { trips, vehicles, drivers, createTrip, dispatchTrip, completeTrip, cancelTrip } = useAppData()
   const { user } = useAuth()
   const toast = useToast()
 
@@ -62,34 +62,28 @@ export default function Trips() {
 
   const { sorted, sortKey, sortDir, toggle } = useSortable(filtered, TRIP_SORT)
 
-  const handleCreate = (data) => {
-    const res = createTrip(data)
+  const handleCreate = async (data) => {
+    const res = await createTrip(data)
     if (res.ok) { toast.success('Trip saved as Draft'); setFormOpen(false) }
     else if (res.error) toast.error(res.error)
     return res
   }
 
-  const handleDispatch = (t) => {
-    const res = dispatchTrip(t.id)
+  const handleDispatch = async (t) => {
+    const res = await dispatchTrip(t.id)
     if (res.ok) toast.success(`${t.id} dispatched — vehicle & driver now On Trip`)
     else toast.error(res.error || 'Cannot dispatch')
   }
 
-  const handleShip = (t) => {
-    const res = shipTrip(t.id)
-    if (res.ok) toast.success(`${t.id} shipped — now in transit`)
-    else toast.error(res.error || 'Cannot ship')
-  }
-
-  const handleComplete = ({ finalOdometer, fuelConsumed }) => {
-    const res = completeTrip(completing.id, { finalOdometer, fuelConsumed })
-    if (res.ok) toast.success(`${completing.id} completed — vehicle & driver freed`)
+  const handleComplete = async ({ finalOdometer, fuelConsumed }) => {
+    const res = await completeTrip(completing.id, { finalOdometer, fuelConsumed })
+    if (res.ok) toast.success(`${completing.id} delivered — vehicle & driver freed`)
     else toast.error(res.error)
     setCompleting(null)
   }
 
-  const handleCancel = () => {
-    cancelTrip(cancelling.id)
+  const handleCancel = async () => {
+    await cancelTrip(cancelling.id)
     toast.info(`${cancelling.id} cancelled`)
     setCancelling(null)
   }
@@ -108,7 +102,7 @@ export default function Trips() {
           <Input placeholder="Search trip, route, driver…" value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
         <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ width: 'auto' }}>
-          {['All', 'Draft', 'Dispatched', 'Shipped', 'Completed', 'Cancelled'].map((s) => <option key={s}>{s}</option>)}
+          {['All', 'Draft', 'Dispatched', 'Completed', 'Cancelled'].map((s) => <option key={s}>{s}</option>)}
         </Select>
       </div>
 
@@ -150,12 +144,6 @@ export default function Trips() {
                         </>
                       )}
                       {t.status === 'Dispatched' && (
-                        <>
-                          <Button size="sm" onClick={() => handleShip(t)}>Ship</Button>
-                          <Button size="sm" variant="ghost" onClick={() => setCancelling(t)}>Cancel</Button>
-                        </>
-                      )}
-                      {t.status === 'Shipped' && (
                         <>
                           <Button size="sm" onClick={() => setCompleting(t)}>Complete</Button>
                           <Button size="sm" variant="ghost" onClick={() => setCancelling(t)}>Cancel</Button>

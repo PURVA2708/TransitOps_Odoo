@@ -1,10 +1,15 @@
 // Authentication + RBAC context.
 // Integrated with Supabase Auth and public.profiles roles.
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
 import { supabase, supabaseReady } from '../lib/supabaseClient'
-import { ROLES } from '../constants/roles'
+import { ROLES, ALL_ROLES } from '../constants/roles'
 const AuthCtx = createContext(null)
 export const useAuth = () => useContext(AuthCtx)
+
+// Locally-created accounts (sign-up / password changes) live alongside the
+// Supabase session so the demo signup + Settings actions keep working.
+const ACCTS_KEY = 'transitops_accounts_v1'
+const norm = (e) => String(e).trim().toLowerCase()
 
 export const DEMO_ACCOUNTS = [
   { email: 'manager@transitops.in',  password: 'demo1234', name: 'Tirth Patel',  role: ROLES.FLEET_MANAGER },
@@ -17,6 +22,9 @@ export const DEMO_ACCOUNTS = [
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(supabaseReady)
+  const [created, setCreated] = useState(() => {
+    try { const raw = localStorage.getItem(ACCTS_KEY); return raw ? JSON.parse(raw) : [] } catch { return [] }
+  })
 
   const fetchProfile = useCallback(async (sessionUser) => {
     if (!sessionUser) {
@@ -159,7 +167,7 @@ export function AuthProvider({ children }) {
   }, [])
 
   return (
-    <AuthCtx.Provider value={{ user, signIn, signOut, isAuthed: Boolean(user), loading }}>
+    <AuthCtx.Provider value={{ user, signIn, signUp, resetPassword, updateProfile, changePassword, signOut, isAuthed: Boolean(user), loading }}>
       {loading ? (
         <div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', background: '#0F172A', color: '#F8FAFC', fontFamily: 'system-ui, sans-serif' }}>
           <div style={{ textAlign: 'center' }}>
