@@ -12,9 +12,9 @@ import Dashboard from '../pages/dashboard/Dashboard'
 import Vehicles from '../pages/vehicles/Vehicles'
 import Drivers from '../pages/drivers/Drivers'
 import Trips from '../pages/trips/Trips'
-
-// Not-yet-built modules (owner: Tirth/Parth — later phases)
-import PagePlaceholder from '../components/ui/PagePlaceholder'
+import Maintenance from '../pages/maintenance/Maintenance'
+import FuelExpense from '../pages/fuel-expense/FuelExpense'
+import Reports from '../pages/reports/Reports'
 
 export default function AppRoutes() {
   return (
@@ -31,10 +31,10 @@ export default function AppRoutes() {
         <Route path="drivers" element={<ProtectedRoute feature="drivers"><Drivers /></ProtectedRoute>} />
         <Route path="trips" element={<ProtectedRoute feature="trips"><Trips /></ProtectedRoute>} />
 
-        {/* Later phases — placeholders */}
-        <Route path="maintenance" element={<ProtectedRoute feature="maintenance"><PagePlaceholder title="Maintenance" owner="Tirth" phase="3 — Operations" /></ProtectedRoute>} />
-        <Route path="fuel-expense" element={<ProtectedRoute feature="fuelExpense"><PagePlaceholder title="Fuel & Expense" owner="Parth" phase="4 — Money" /></ProtectedRoute>} />
-        <Route path="reports" element={<ProtectedRoute feature="reports"><PagePlaceholder title="Reports & Analytics" owner="Tirth" phase="4 — Insight" /></ProtectedRoute>} />
+        {/* Later phases */}
+        <Route path="maintenance" element={<ProtectedRoute feature="maintenance"><Maintenance /></ProtectedRoute>} />
+        <Route path="fuel-expense" element={<ProtectedRoute feature="fuelExpense"><FuelExpense /></ProtectedRoute>} />
+        <Route path="reports" element={<ProtectedRoute feature="reports"><Reports /></ProtectedRoute>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
